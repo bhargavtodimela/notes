@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Notes</title>
+  <style>
+    /* Base Reset and Mobile Design */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      font-family: 'Poppins', sans-serif;
+      background: #121212;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* Splash / Preloader */
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(145deg, #1e1e1e, #272727);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      transition: opacity 0.5s ease;
+    }
+    .loader-circle {
+      border: 5px solid #333;
+      border-top: 5px solid #00ffc8;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1.2s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* App Container */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    header {
+      background: #1a1a1a;
+      text-align: center;
+      padding: 1rem;
+      font-weight: 600;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      background: #181818;
+      padding: 0.8rem;
+      border-top: 1px solid #252525;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+    }
+
+    button {
+      background: #00ffc8;
+      color: #000;
+      border: none;
+      padding: 0.7rem 1.3rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 3px 10px rgba(0,255,200,0.3);
+      transition: 0.2s ease;
+    }
+
+    button:active {
+      transform: scale(0.95);
+      background: #00e6b4;
+    }
+
+    #canvasContainer {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #101010;
+      padding: 0.5rem;
+      margin-bottom: 4.5rem;
+    }
+
+    canvas {
+      background: #fff;
+      border-radius: 10px;
+      touch-action: none;
+      width: 95%;
+      height: 90%;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Splash Screen -->
+  <div id="loader">
+    <div class="loader-circle"></div>
+  </div>
+
+  <!-- Main App -->
+  <div class="app" id="app">
+    <header>📝 Smart Notes</header>
+
+    <div id="canvasContainer">
+      <canvas id="drawPad"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="clearBtn">Clear</button>
+      <button id="saveBtn">Save</button>
+      <button id="loadBtn">Load</button>
+    </div>
+  </div>
+
+  <script>
+    // --- Preloader animation ---
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('loader').style.opacity = '0';
+        document.getElementById('app').style.opacity = '1';
+        setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+      }, 1200);
+    });
+
+    // --- Drawing Logic ---
+    const canvas = document.getElementById('drawPad');
+    const ctx = canvas.getContext('2d');
+    const clearBtn = document.getElementById('clearBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const loadBtn = document.getElementById('loadBtn');
+
+    function resizeCanvas() {
+      const { width, height } = canvas.getBoundingClientRect();
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      canvas.width = width * window.devicePixelRatio;
+      canvas.height = height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+
+    let drawing = false;
+    let lastX, lastY;
+
+    const getPos = (e) => {
+      if (e.touches) {
+        const touch = e.touches[0];
+        return { x: touch.clientX - canvas.getBoundingClientRect().left, y: touch.clientY - canvas.getBoundingClientRect().top };
+      } else {
+        return { x: e.offsetX, y: e.offsetY };
+      }
+    };
+
+    const start = (e) => {
+      drawing = true;
+      const pos = getPos(e);
+      lastX = pos.x;
+      lastY = pos.y;
+    };
+
+    const draw = (e) => {
+      if (!drawing) return;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      lastX = pos.x;
+      lastY = pos.y;
+    };
+
+    const stop = () => { drawing = false; };
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stop);
+    canvas.addEventListener('mouseout', stop);
+
+    canvas.addEventListener('touchstart', start);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stop);
+
+    // --- LocalStorage Save/Load ---
+    saveBtn.onclick = () => {
+      localStorage.setItem('noteDrawing', canvas.toDataURL());
+      alert('Drawing saved locally ✅');
+    };
+
+    loadBtn.onclick = () => {
+      const data = localStorage.getItem('noteDrawing');
+      if (data) {
+        const img = new Image();
+        img.src = data;
+        img.onload = () => ctx.drawImage(img, 0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio);
+      } else {
+        alert('No saved note found!');
+      }
+    };
+
+    clearBtn.onclick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  </script>
+
+</body>
+</html>
